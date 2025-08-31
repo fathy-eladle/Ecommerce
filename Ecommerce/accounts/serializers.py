@@ -5,7 +5,12 @@ from accounts.models import User
 from django.db import transaction
 from accounts.utils.email_utils import send_verification_email
 import re
+from shared.common import ResponseGlobal 
+from rest_framework.response import Response
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+
+from rest_framework.exceptions import AuthenticationFailed
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
 
@@ -48,6 +53,32 @@ class RegisterSerializer(serializers.ModelSerializer):
             
         return user        
 
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        try:
+            data = super().validate(attrs)
+
+            response = ResponseGlobal(
+                success=True,
+                message="login_success",
+                error="",
+                data={
+                    "access": data["access"],
+                    "refresh": data["refresh"],
+                }
+            )
+            return response.to_dict()
+
+        except AuthenticationFailed as e:
+
+            response = ResponseGlobal(
+                success=False,
+                message="login_failed",
+                error=str(e.detail),
+                data={}
+            )
+            return response.to_dict()
 
 class ChangePasswordSerializer(serializers.ModelSerializer):
     

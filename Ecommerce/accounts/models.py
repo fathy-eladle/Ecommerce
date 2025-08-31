@@ -5,6 +5,7 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 
 class User(AbstractUser):
+    username = models.CharField(max_length=50,blank=False, null=False, unique=True)
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=11, blank=True, null=True)
     image = models.ImageField(upload_to='users/', null=True, blank=True)
