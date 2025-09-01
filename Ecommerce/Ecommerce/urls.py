@@ -38,6 +38,10 @@ urlpatterns = [
          cache_timeout=0), name='schema-redoc'),
     
     path('admin/', admin.site.urls),
-    path('api/accounts/', include('accounts.urls')),  # Include accounts app URLs
-    path('api/', include('product.urls')),  # Include products app URLs
+    path('api/accounts/', include('accounts.urls')),
+    path('api/', include('product.urls')),
+    path('api/', include('cart.urls')),
+    path('api/', include('order.urls')),
+    path('api/', include('review.urls')),
+    path('api/', include('review.urls')),  # Include orders app URLs
 ]
