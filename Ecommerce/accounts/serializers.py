@@ -174,7 +174,19 @@ class ResetPasswordConfirmSerializer(serializers.Serializer):
     email = serializers.EmailField()
     code = serializers.CharField()
     new_password = serializers.CharField(write_only=True, min_length=8)
-
+    
+    
+    def validate_new_password(self,value):
+        if not re.search(r'[a-z]',value):
+            raise serializers.ValidationError('Password must contain at least one lowercase letter.')
+        if not re.search(r'[A-Z]',value):
+            raise serializers.ValidationError('Password must contain at least one Cpitalcase letter.')
+        if not re.search(r'\d',value):
+            raise serializers.ValidationError('Password must contain at least one number.')
+        if not re.search(r'[!@#$%?*&]',value):
+            raise serializers.ValidationError('Password must contain at least one special Character.')
+        return value
+        
     def validate(self, attrs):
         email = attrs.get("email")
         code = attrs.get("code")
