@@ -6,4 +6,6 @@ app_name = 'payment'
 urlpatterns = [
     path('initialize/', views.initialize_payment, name='initialize_payment'),
     path('callback/', views.payment_callback, name='payment_callback'),
+    path("status/<int:order_id>/", views.payment_status, name="payment_status"),
+
 ]
