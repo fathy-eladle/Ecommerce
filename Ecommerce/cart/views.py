@@ -34,12 +34,14 @@ class CartItemCreateView(generics.CreateAPIView):
         product = serializer.validated_data.get("product")
         quantity = serializer.validated_data.get("quantity")
         
-        cart_item , created = CartItem.objects.get_or_create(cart =cart , product = product)
-        if not created :
+        cart_item , created = CartItem.objects.get_or_create(cart =cart , product = product
+)
+        if not created:
             cart_item.quantity += quantity
             cart_item.save()
+        
         else:
-            serializer.save(cart=cart)
+            pass
 
 class CartItemUpdateView(generics.UpdateAPIView):
     serializer_class = CartItemSerializer

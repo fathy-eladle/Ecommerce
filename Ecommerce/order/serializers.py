@@ -6,10 +6,9 @@ from cart.models import Cart
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
     total_price = serializers.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
-        read_only=True,
-        source='total_price'
+        max_digits=10,
+        decimal_places=2,
+        read_only=True
     )
 
     class Meta:
@@ -67,6 +66,8 @@ class OrderSerializer(serializers.ModelSerializer):
 
         total_amount = 0
         for cart_item in cart.items.all():
+            # if not cart_item.product.stock:
+            #  raise serializers.ValidationError(f"{cart_item.product.name} is out of stock")
             if cart_item.quantity > cart_item.product.stock:
                 raise serializers.ValidationError(
                     f"Product {cart_item.product.name} is out of stock"

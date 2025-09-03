@@ -12,6 +12,7 @@ class PaymentTransaction(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='payment_transactions')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     paymob_order_id = models.CharField(max_length=100, null=True, blank=True)
     paymob_payment_id = models.CharField(max_length=100, null=True, blank=True)
     transaction_id = models.CharField(max_length=100, null=True, blank=True)
