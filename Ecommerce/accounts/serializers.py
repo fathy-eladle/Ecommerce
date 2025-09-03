@@ -8,7 +8,9 @@ import re
 from shared.common import ResponseGlobal 
 from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-
+from django.utils import timezone
+from datetime import timedelta
+from accounts.utils.email_utils import send_reset_password_code
 
 from rest_framework.exceptions import AuthenticationFailed
 class RegisterSerializer(serializers.ModelSerializer):
@@ -34,8 +36,8 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate(self, data):   
         password = data.get('password')
         username = data.get('username')
-        if username.lower() in password.lower():
-            raise serializers.ValidationError('Password cant contain username.') 
+        if username.lower() == password.lower():
+            raise serializers.ValidationError('Password can\'t be same as username.') 
         
         return data   
     
@@ -79,6 +81,151 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 data={}
             )
             return response.to_dict()
+
+class VerifyAccountSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField()
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        code = attrs.get('code')
+
+        try:
+            user = User.objects.get(email=email, verification_code=code)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("invalid code or email")
+
+        if user.verification_code_created_at:
+            now = timezone.now()
+            if now - user.verification_code_created_at > timedelta(minutes=5):
+                raise serializers.ValidationError("verification code is expired")
+
+        attrs['user'] = user
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.validated_data['user']
+        user.is_active = True
+        user.verification_code = None
+        user.verification_code_created_at = None
+        user.save()
+        return user
+class ResendCodeSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        try:
+            user = User.objects.get(email=email, is_active=False)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("user not registered or already active")
+
+        if timezone.now() - user.verification_code_created_at < timedelta(seconds=60):
+            raise serializers.ValidationError("Please wait before requesting another code.")
+
+        attrs['user'] = user
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.validated_data['user']
+        user.verification_code = user.generate_verification_code()
+        user.save()
+        send_verification_email(user)
+        return user
+
+class CheckUserStatusSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({"status": "not_registered"})
+        attrs["user"] = user
+        return attrs
+
+    def to_representation(self, instance):
+        user = self.validated_data["user"]
+        if not user.is_active:
+            return {"status": "pending_verification"}
+        return {"status": "verified"}
+
+class ResetPasswordRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("this email is not registered")
+        attrs['user'] = user
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.validated_data['user']
+        user.reset_password_code = user.generate_reset_password_code()
+        user.save()
+        send_reset_password_code(user)
+        return user
+
+class ResetPasswordConfirmSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField()
+    new_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        code = attrs.get("code")
+        new_password = attrs.get("new_password")
+
+        try:
+            user = User.objects.get(email=email, reset_password_code=code)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("invalid code or email")
+
+        if user.reset_password_created_at:
+            now = timezone.now()
+            if now - user.reset_password_created_at > timedelta(minutes=5):
+                raise serializers.ValidationError("expired code, try resend code again")
+
+        attrs["user"] = user
+        attrs["new_password"] = new_password
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.validated_data["user"]
+        new_password = self.validated_data["new_password"]
+        user.set_password(new_password)
+        user.reset_password_code = None
+        user.reset_password_created_at = None
+        user.save()
+        return user
+
+class ResendPasswordCodeSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("this email is not registered")
+
+        if timezone.now() - user.reset_password_created_at < timedelta(seconds=60):
+            raise serializers.ValidationError("Please wait before requesting another code.")
+
+        attrs["user"] = user
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.validated_data["user"]
+        user.reset_password_code = user.generate_reset_password_code()
+        user.save()
+        send_reset_password_code(user)
+        return user
+
 
 class ChangePasswordSerializer(serializers.ModelSerializer):
     

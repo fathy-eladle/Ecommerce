@@ -3,7 +3,9 @@ from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView,UpdateAPIView
 from .serializers import (RegisterSerializer, ChangePasswordSerializer,LogoutSerializer
                           ,UpdateProfileSerializer,
-                          CustomTokenObtainPairSerializer)
+                          CustomTokenObtainPairSerializer,VerifyAccountSerializer
+                          ,ResendCodeSerializer,ResetPasswordRequestSerializer,ResetPasswordConfirmSerializer,CheckUserStatusSerializer
+                          ,ResendPasswordCodeSerializer)
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -42,125 +44,58 @@ class VerifyAccountView(APIView):
     @swagger_auto_schema()
 
     def post(self, request):
-        email = request.data.get('email') 
-        code =request.data.get('code')
-         
-        try: 
-            user = User.objects.get(email= email, verification_code= code)
-            
-            if user.verification_code_created_at:
-                now= timezone.now()
-                if now-user.verification_code_created_at > timedelta(minutes=5):
-                    return Response({'msg':'verification code is expired'},status=status.HTTP_400_BAD_REQUEST)
-             
-            user.is_active = True
-            user.verification_code = None
-            user.verification_code_created_at = None
-            user.save()
-            return Response({'msg':'account is verified successfully'}, status=status.HTTP_200_OK)
-        except User.DoesNotExist:
-            return Response({'msg':'invalid code or email'}, status=status.HTTP_400_BAD_REQUEST)
-              
+        serializer = VerifyAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'msg': 'account is verified successfully'}, status=status.HTTP_200_OK)
+
 class ResendCodeView(APIView):
-    
     permission_classes = []
-    
-    def post(self,request):
-        email = request.data.get('email') 
-        if not email:
-            return Response({'msg': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            user = User.objects.get(email=email,is_active=False)
-            if timezone.now() - user.verification_code_created_at < timedelta(seconds=60):
-                return Response({'msg': 'Please wait before requesting another code.'}, status=status.HTTP_400_BAD_REQUEST)
-            user.verification_code = user.generate_verification_code()
-            user.save()
-            send_verification_email(user)
-            return Response({'msg':'Verification code resent'},status=status.HTTP_200_OK)            
-        except User.DoesNotExist:
-            return Response({'msg':'user not registered or alredy active'},status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request):
+        serializer = ResendCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'msg': 'Verification code resent'}, status=status.HTTP_200_OK)
 
 
-class CheckUserStatus(APIView):
-    permission_classes = []
-    
-    def post(self,request):
-        email = request.data.get('email')
-        if not email:
-            return Response({'mag':'email is required'},status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            user = User.objects.get(email=email)
-            if not user.is_active:
-                return Response({'status': 'pending_verification'},status=status.HTTP_200_OK)
-            else:
-                return Response({'status': 'verified'},status=status.HTTP_200_OK)
-        except User.DoesNotExist:
-            return Response({'status': 'not_registered'},status=status.HTTP_404_NOT_FOUND)  
         
 
 class ResetPasswordRequestView(APIView):
     permission_classes = []
-    @swagger_auto_schema()
+    def post(self, request):
+        serializer = ResetPasswordRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'msg': 'code sent successfully'}, status=status.HTTP_200_OK)
+
+class CheckUserStatus(APIView):
+    permission_classes = []
 
     def post(self, request):
-        email = request.data.get('email')
-        if not email:
-            return Response({'msg':'email is required'},status=status.HTTP_404_NOT_FOUND)
-        
-        try:        
-            user = User.objects.get(email=email)
-            user.reset_password_code = user.generate_reset_password_code()
-            user.save()
-            send_reset_password_code(user)
-            return Response({'msg':'code sent successfylly'}, status=status.HTTP_200_OK)
-        except User.DoesNotExist:
-            return Response({'msg':'this email is not registered'}, status=status.HTTP_400_BAD_REQUEST)
-            
+        serializer = CheckUserStatusSerializer(data=request.data)
+        if serializer.is_valid():
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_404_NOT_FOUND)
+
+
 class ResetPasswordConfirmView(APIView):
     permission_classes = []
-    
-    def post(self,request):
-        email = request.data.get('email')
-        code = request.data.get('code')
-        new_password = request.data.get('new_password')
-        
-        try:
-            user = User.objects.get(email=email,reset_password_code=code)
-           
-            if user.reset_password_created_at:
-               now = timezone.now()
-               if now-user.reset_password_created_at> timedelta(minutes=5):
-                   return Response({'msg':'expired code  try resend code again'},status=status.HTTP_400_BAD_REQUEST)
-               user.set_password(new_password)
-               user.reset_password_code = None
-               user.reset_password_created_at = None
-               user.save()
-               return Response({'msg':'password updated successfully'},status=status.HTTP_200_OK)
-        except User.DoesNotExist:
-            return Response({'msg':'invalid code or email'},status=status.HTTP_404_NOT_FOUND)                   
+
+    def post(self, request):
+        serializer = ResetPasswordConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'msg': 'password updated successfully'}, status=status.HTTP_200_OK)
 
 
 class ResendPasswordCodeView(APIView):
-    permission_classes=[]
-    
-    def post(self,request):
-        email = request.data.get('email')
-        if not email:
-            return Response({'mmsg':'email is required'},status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            user = User.objects.get(email=email)
-            if timezone.now() - user.reset_password_created_at < timedelta(seconds=60):
-                return Response({'msg': 'Please wait before requesting another code.'}, status=status.HTTP_400_BAD_REQUEST)
-            user.reset_password_code=user.generate_reset_password_code()
-            user.save()
-            send_reset_password_code(user)
-            
-            return Response({'msg':'code is resend '},status=status.HTTP_200_OK)
-        except User.DoesNotExist:
-            return Response({'msg':'this email is not registeerd'},status=status.HTTP_404_NOT_FOUND)
-        
+    permission_classes = []
+
+    def post(self, request):
+        serializer = ResendPasswordCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'msg': 'code is resent'}, status=status.HTTP_200_OK)
 
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
